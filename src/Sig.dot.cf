@@ -1,0 +1,31 @@
+-- .dot grammars: https://graphviz.org/doc/info/lang.html 
+-- genererad .dot-fil saknar semikolon efter edge statements (?)
+
+GDef        . DotGraph ::= "strict" GKind ID "{" [Stmt] "}" ; 
+
+SNode       . Stmt ::= ID "[" [Attr] "]"            ; 
+SEdge       . Stmt ::= ID "->" ID "[" [Attr] "]"    ;
+SAttr       . Stmt ::= Kind "[" [Attr] "]"          ;
+SSoloAttr   . Stmt ::= Attr                         ; 
+terminator Stmt ";"                                 ;
+
+token ID ((letter | digit | '_')+)          ;
+
+ARegular    . Attr ::= AKind "=" String     ;
+AID         . Attr ::= AKind "=" ID         ;
+separator Attr " "                          ;
+
+AFontsize   . AKind ::= "fontsize"          ; 
+ARankdir    . AKind ::= "rankdir"           ; 
+ALabel      . AKind ::= "label"             ; 
+AColor      . AKind ::= "color"             ; 
+AFillcolor  . AKind ::= "fillcolor"         ; 
+AStyle      . AKind ::= "style"             ; 
+AShape      . AKind ::= "shape"             ; 
+
+KNode       . Kind ::= "node"               ; 
+KEgde       . Kind ::= "edge"               ; 
+KGraph      . Kind ::= "graph"              ;
+
+GKDi        . GKind ::= "digraph"           ; 
+GKSub       . GKind ::= "subgraph"          ;
