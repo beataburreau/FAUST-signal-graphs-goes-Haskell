@@ -1,0 +1,64 @@
+name:                FAUST-signal-graphs-goes-Haskell
+version:             0.1.0.0
+github:              "beataburreau/FAUST-signal-graphs-goes-Haskell"
+license:             BSD3
+author:              "Beata Burreau"
+maintainer:          "b.burreau@gmail.com"
+copyright:           "2022 Beata Burreau"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/beataburreau/FAUST-signal-graphs-goes-Haskell#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- array >=0.3 && <0.6
+- containers
+- deepseq
+- extended-reals
+- hashable
+- lattices
+- data-interval
+- distributive >=0.2 && <1
+- ghc-prim
+- semigroups >=0.11 && <1
+- intervals
+- transformers
+- fgl
+- mtl
+- random
+- parsec
+
+library:
+  source-dirs: src
+
+executables:
+  FAUST-signal-graphs-goes-Haskell-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - FAUST-signal-graphs-goes-Haskell
+
+tests:
+  FAUST-signal-graphs-goes-Haskell-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - FAUST-signal-graphs-goes-Haskell
