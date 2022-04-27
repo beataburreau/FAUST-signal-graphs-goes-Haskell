@@ -7,15 +7,18 @@ import qualified SigDot.Abs as A
 import SigDot.Par (pDotGraph, myLexer)
 
 -- GRAPH STATE
-import GraphState (GraphState, Info, Edge(Edge), Node(Node, nid, ni), Primitive(..), ComputationRate(..), Type(..), 
-      toIndex, toType, toPrimitive, toComputationRate, toInterval, getLowerBound, getUpperBound)
+import GraphState (GraphState, Info, Edge(Edge), Node(Node, nid, ni), Primitive(..), ComputationRate(..), Type(..),
+      toType, toPrimitive, toComputationRate, toInterval, getLowerBound, getUpperBound)
+
+-- GRAPH PRINTER 
+import GraphPrinter (prettyPrint)
 
 -- MONADS
 import Control.Monad.State (get, put, MonadIO (liftIO), evalStateT)
-import Data.Maybe (mapMaybe, fromMaybe)
+import Data.Maybe (mapMaybe, fromMaybe, catMaybes)
 
 -- LIBRARIES
-import Data.Graph.Inductive (Gr, LNode, LEdge, Graph (mkGraph), prettyPrint)
+import Data.Graph.Inductive (Gr, LNode, LEdge, Graph (mkGraph))
 import System.Random (StdGen, newStdGen, random)
 import Data.Char (isDigit)
 import Data.List (stripPrefix)
@@ -30,7 +33,10 @@ type E = String   -- Edge label
 -- Parses the content of given file into an inductive dynamic graph and prints it
 -- *  The additional graph information is kept in a GraphState
 parseNprintGraph :: FilePath -> IO()
-parseNprintGraph path = evalStateT (haskelliseFile path) initInfo >>= prettyPrint
+parseNprintGraph path = do
+                        graph <- evalStateT (haskelliseFile path) initInfo
+                        putStrLn "\nParse successful!\n"
+                        prettyPrint graph
                 where initInfo = ([],[])
 
 
@@ -66,17 +72,21 @@ makeGraph (A.GDef _ _ stmts) = do
 nodes :: [A.Stmt] -> GraphState [LNode N]
 nodes stmts = do
                 (ns, es) <- get
-                let (ns', lns) = unzip $ mapMaybe node stmts
+                let (ns', lns) = unzip $ getNodes stmts 1
                 put (ns', es)
                 return lns
                 where
-                    node :: A.Stmt -> Maybe (Node Int, LNode N)
-                    node s = case s of
+                    getNodes :: [A.Stmt] -> Int -> [(Node Int, LNode N)]
+                    getNodes []        count = []
+                    getNodes (s:stmts) count = case node s count of
+                                                Just n -> n:getNodes stmts (succ count)
+                                                Nothing -> getNodes stmts count
+                    node :: A.Stmt -> Int -> Maybe (Node Int, LNode N)
+                    node s i = case s of
                                 (A.SNode (A.ID id) attrs) -> if id /= "OUTPUT_0"
                                                              then Just (Node i id t p r, (i, l))
                                                              else Just (Node 0 id t p r, (0, id))
-                                                                where i = toIndex id
-                                                                      l = case getAttribute attrs A.ALabel of
+                                                                where l = case getAttribute attrs A.ALabel of
                                                                             Just l -> l
                                                                             Nothing -> error "Missing label attribute"
                                                                       t = case getAttribute attrs A.AColor of

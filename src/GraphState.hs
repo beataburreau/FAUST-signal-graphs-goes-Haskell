@@ -8,7 +8,6 @@ module GraphState
     Primitive(..),
     ComputationRate(..),
     Type(..),
-    toIndex,
     toPrimitive,
     toComputationRate,
     toType,
@@ -68,13 +67,6 @@ data Primitive = Number (Either Int Float) -- a number is _either_ an integer or
 data ComputationRate = Constant
                      | Sample
                      | Block
-
--- Produces a integer index given a .dot graph identifier, e.g. S0x7fb9cfd0abe0
--- The hexadecimal part of the identifier is converted to an integer with readHex
-toIndex :: String -> Int
-toIndex id = case readHex $ drop 3 id of 
-                []  -> error "Failed conversion from id to integer index"
-                res -> fst $ head res
 
 -- Converts a .dot graph color into the corresponding type
 toType :: String -> Type
