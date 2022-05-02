@@ -11,9 +11,7 @@ module GraphState
     toPrimitive,
     toComputationRate,
     toType,
-    toInterval, 
-    getLowerBound, 
-    getUpperBound)
+    toInterval)
 where
 
 -- MONADS
@@ -22,10 +20,10 @@ import Control.Monad.Except (ExceptT)
 import Control.Exception (Exception)
 
 -- LIBRARIES
-import Data.Interval (Interval, (<=..<=), lowerBound, Extended (NegInf, PosInf, Finite), upperBound)
+import Data.Interval (Interval, Boundary (..), interval, Extended (NegInf, PosInf, Finite))
 import Data.Maybe (isJust, fromJust)
 import Text.Read (readMaybe)
-import Text.Parsec (Parsec, parse, oneOf, manyTill, digit, spaces, many1, many)
+import Text.Parsec (Parsec, parse, oneOf, manyTill, string, digit, spaces, many1, many, option, choice, char)
 import Numeric (readHex)
 import Data.Char (toLower)
 
@@ -105,57 +103,43 @@ toComputationRate str = case str of
 
 -- Parses a .dot graph edge label into a floating point interval using Parsec parsers
 -- EX/ 
--- "[4.000000, 4.000000], r(???)" is successfully parsed as (Finite 4.00 <=..<= Finite 4.00)
+-- "[4.000000, inf], r(???)" is successfully parsed as (Finite 4.00 <=..< PosInf)
 toInterval :: String -> Interval Float
-toInterval str = Finite lower <=..<= Finite upper
+toInterval str = interval (extendedF lower) (extendedF upper)
                 where
-                    (lower, upper) = case parse interval "" str of
+                    (lower, upper) = case parse intervalP "" str of
                                     Left _ -> error $ str ++ " is not a valid interval"
-                                    Right (fst, snd) -> (toFloat fst, toFloat snd)
+                                    Right (fst, snd) -> (fst, snd)
+                    extendedF :: String -> (Extended Float, Boundary)
+                    extendedF str = case str of 
+                                        "inf"   -> (PosInf, Open)
+                                        "-inf"  -> (NegInf, Open)
+                                        _       -> (Finite $ toFloat str, Closed)
                     toFloat :: String -> Float
                     toFloat str = case readMaybe str :: Maybe Float of
                                     Just d -> d
                                     Nothing -> error $ "Failed to parse " ++ str ++ " as floating point number"
                     -- Parsec parser for intervals
-                    interval :: Parsec String () (String, String)
-                    interval = do
-                                    oneOf "["
-                                    fst <- float
-                                    oneOf ","
+                    intervalP :: Parsec String () (String, String)
+                    intervalP = do
+                                    char '['
+                                    fst <- choice [floatP, infinityP]
+                                    char ','
                                     spaces
-                                    snd <- float
-                                    oneOf "]"
+                                    snd <- choice [floatP, infinityP]
+                                    char ']'
                                     many (oneOf ", r(?")
                                     return (fst, snd)
                     -- Parsec parser for floating point numbers
-                    float :: Parsec String () String
-                    float = do
-                            intPart <- manyTill digit (oneOf ".")
-                            decPart <- many1 digit
-                            return $ intPart ++ "." ++ decPart
-
--- Getter for lower bound of a given interval
--- Returns 'raw' floating point number
-getLowerBound :: Interval Float -> Float 
-getLowerBound = getBound "lower"
-
--- Getter for upper bound of a given interval
--- Returns 'raw' floating point number
-getUpperBound :: Interval Float -> Float 
-getUpperBound = getBound "upper"
-
--- Getter for given bound ("lower" or "upper") of given interval
--- Returns the 'raw' floating point number (i.e. sans Finitie constructor) if 
--- the bound is a finite value
--- Throws an error if the bound is the positive or negative infinity
-getBound :: String -> Interval Float -> Float
-getBound boundType interval = case bound of 
-                                Finite f -> f
-                                NegInf     -> error $ "The " ++ boundType ++ " bound is negative infinity (-∞)"
-                                PosInf     -> error $ "The " ++ boundType ++ " bound is positive infinity (∞)"
-                             where bound = case map toLower boundType of 
-                                            "lower" -> lowerBound interval
-                                            "upper" -> upperBound interval
-                                            _       -> error $ boundType ++ " is not a valid bound type"
-
-
+                    floatP :: Parsec String () String
+                    floatP = do
+                                sign <- option "" (string "-")
+                                intPart <- manyTill digit (char '.')
+                                decPart <- many1 digit
+                                return $ sign ++ intPart ++ "." ++ decPart
+                    -- Parsec parser for (positive and negative) infinities
+                    infinityP :: Parsec String () String
+                    infinityP = do 
+                                sign <- option "" (string "-")
+                                string "inf"
+                                return $ sign ++ "inf"

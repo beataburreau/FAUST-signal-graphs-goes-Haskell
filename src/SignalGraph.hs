@@ -8,7 +8,7 @@ import SigDot.Par (pDotGraph, myLexer)
 
 -- GRAPH STATE
 import GraphState (GraphState, Info, Edge(Edge), Node(Node, nid, ni), Primitive(..), ComputationRate(..), Type(..),
-      toType, toPrimitive, toComputationRate, toInterval, getLowerBound, getUpperBound)
+      toType, toPrimitive, toComputationRate, toInterval)
 
 -- GRAPH PRINTER 
 import GraphPrinter (prettyPrint)
@@ -22,6 +22,7 @@ import Data.Graph.Inductive (Gr, LNode, LEdge, Graph (mkGraph))
 import System.Random (StdGen, newStdGen, random)
 import Data.Char (isDigit)
 import Data.List (stripPrefix)
+import Data.Interval (lowerBound, upperBound, Extended (..))
 
 
 -- Type synonyms for node and edge labels
@@ -121,7 +122,7 @@ edges stmts = do
                                                                                       interval = case getAttribute attrs A.ALabel of
                                                                                             Just l -> toInterval l
                                                                                             Nothing -> error "Missing label attribute"
-                                                                                      l = "[" ++ show (getLowerBound interval) ++ ", " ++ show (getUpperBound interval) ++ "]"
+                                                                                      l = "[" ++ showExtendedF (lowerBound interval) ++ ", " ++ showExtendedF (upperBound interval) ++ "]"
                                                                                       t = case getAttribute attrs A.AColor of
                                                                                             Just c -> toType c
                                                                                             Nothing -> error "Missing color attribute"
@@ -147,3 +148,11 @@ getAttribute []                       _  = Nothing
 getAttribute ((A.ARegular k1 str):as) k2 | k1 == k2  = Just str
                                          | otherwise = getAttribute as k2
 getAttribute (a:as)                   k  = getAttribute as k
+
+-- Alternative show function for Extended Float
+-- Shows the 'raw' floating point number (i.e. sans Finitie constructor) in case of a finite value, 
+-- and 'inf' / '-inf' in case of an infinite one 
+showExtendedF :: Extended Float -> String 
+showExtendedF PosInf     = "inf"
+showExtendedF NegInf     = "-inf"
+showExtendedF (Finite f) = show f
