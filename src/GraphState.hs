@@ -26,6 +26,7 @@ import Text.Read (readMaybe)
 import Text.Parsec (Parsec, parse, oneOf, manyTill, string, digit, spaces, many1, many, option, choice, char)
 import Numeric (readHex)
 import Data.Char (toLower)
+import Data.Either (fromLeft)
 
 
 -- The graph state 
@@ -58,9 +59,14 @@ data Type = Integer
           | Float
 
 data Primitive = Number (Either Int Float) -- a number is _either_ an integer or a floating point number
-               | Operator String
-               | UI String
+               | Operator Operator
+               | UI UI
+               | Input Int
                | Output
+
+data Operator = IntCast | FloatCast | Cut | Delay | Pow | Mul | Div | Mod | Add | Sub | LT | LE | GT | GE | EQ | NEQ | XOR | AND | OR | LShift | RShift
+
+data UI = Button | Checkbox | HSlider | VSlider | Nentry
 
 data ComputationRate = Constant
                      | Sample
@@ -77,21 +83,56 @@ toType str = case str of
 
 -- Converts a .dot graph node label into the corresponding primitive
 toPrimitive :: String -> Primitive
-toPrimitive str | isJust number         = Number $ fromJust number
-                | str `elem` operators  = Operator str
-                | str `elem` uielements = UI str
-                | str == "OUTPUT_0"     = Output
-                | otherwise             = error $ str ++ " is not a valid primitive value; it must be an integer, float, operator, UI element or output signal"
+toPrimitive str | isJust number                           = Number $ fromJust number
+                | isJust operator                         = Operator $ fromJust operator
+                | isJust ui                               = UI $ fromJust ui
+                | take 5 str == "INPUT" && isJust _number = Input $ fromLeft (error "Invalid input number, it must be an integer value") (fromJust _number)
+                | str == "OUTPUT_0"                       = Output
+                | otherwise                               = error $ str ++ " is not a valid primitive value; it must be an integer, float, operator, UI element, input or output signal"
                 where
                     number = toNumber str
-                    operators = ["int", "float", "!", "@", "^", "*", "/", "%", "+", "-", "<", "<=", ">", ">=", "==", "!=", "xor", "&", "|", "<<", ">>"] -- currently non-exhaustive
-                    uielements = ["button", "checkbox", "hslider", "vslider", "nentry"]
+                    operator = toOperator str
+                    ui = toUI str
+                    _number = toNumber $ drop 6 str
                     toNumber :: String -> Maybe (Either Int Float)
                     toNumber str = case readMaybe str :: Maybe Int of
                                     Just i  -> Just $ Left i
                                     Nothing -> case readMaybe str :: Maybe Float of
                                         Just d -> Just $ Right d
                                         Nothing -> Nothing
+                    toOperator :: String -> Maybe Operator
+                    toOperator str = case str of
+                                     "int"   -> Just IntCast
+                                     "float" -> Just FloatCast
+                                     "!"     -> Just Cut
+                                     "@"     -> Just Delay
+                                     "^"     -> Just Pow
+                                     "*"     -> Just Mul
+                                     "/"     -> Just Div
+                                     "%"     -> Just Mod
+                                     "+"     -> Just Add
+                                     "-"     -> Just Sub
+                                     "<"     -> Just GraphState.LT
+                                     "<="    -> Just LE
+                                     ">"     -> Just GraphState.GT
+                                     ">="    -> Just GE
+                                     "=="    -> Just GraphState.EQ
+                                     "!="    -> Just NEQ
+                                     "xor"   -> Just XOR
+                                     "&"     -> Just AND
+                                     "|"     -> Just OR
+                                     "<<"    -> Just LShift
+                                     ">>"    -> Just RShift
+                                     _       -> Nothing
+                    toUI :: String -> Maybe UI
+                    toUI str = case str of
+                                "button"   -> Just Button
+                                "checkbox" -> Just Checkbox
+                                "hslider"  -> Just HSlider
+                                "vslider"  -> Just VSlider
+                                "nentry"   -> Just Nentry
+                                _          -> Nothing
+
 
 -- Converts a .dot graph node shape into the corresponding computation rate
 toComputationRate :: String -> ComputationRate
@@ -111,7 +152,7 @@ toInterval str = interval (extendedF lower) (extendedF upper)
                                     Left _ -> error $ str ++ " is not a valid interval"
                                     Right (fst, snd) -> (fst, snd)
                     extendedF :: String -> (Extended Float, Boundary)
-                    extendedF str = case str of 
+                    extendedF str = case str of
                                         "inf"   -> (PosInf, Open)
                                         "-inf"  -> (NegInf, Open)
                                         _       -> (Finite $ toFloat str, Closed)
@@ -139,7 +180,7 @@ toInterval str = interval (extendedF lower) (extendedF upper)
                                 return $ sign ++ intPart ++ "." ++ decPart
                     -- Parsec parser for (positive and negative) infinities
                     infinityP :: Parsec String () String
-                    infinityP = do 
+                    infinityP = do
                                 sign <- option "" (string "-")
                                 string "inf"
                                 return $ sign ++ "inf"
