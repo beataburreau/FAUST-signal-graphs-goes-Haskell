@@ -39,6 +39,9 @@ library
       Paths_FAUST_signal_graphs_goes_Haskell
   hs-source-dirs:
       src
+  build-tools:
+      alex
+    , happy
   build-depends:
       array >=0.3 && <0.6
     , base >=4.7 && <5
@@ -66,6 +69,9 @@ executable FAUST-signal-graphs-goes-Haskell-exe
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-tools:
+      alex
+    , happy
   build-depends:
       FAUST-signal-graphs-goes-Haskell
     , array >=0.3 && <0.6
@@ -95,6 +101,9 @@ test-suite FAUST-signal-graphs-goes-Haskell-test
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-tools:
+      alex
+    , happy
   build-depends:
       FAUST-signal-graphs-goes-Haskell
     , array >=0.3 && <0.6

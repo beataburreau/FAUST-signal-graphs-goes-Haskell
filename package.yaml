@@ -38,6 +38,8 @@ dependencies:
 - random
 - parsec
 
+build-tools: [ alex, happy ]
+
 library:
   source-dirs: src
 
