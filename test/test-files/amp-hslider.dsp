@@ -1,0 +1,1 @@
+process = int(*(hslider("toto", 0, 0, 1, 0.1)));

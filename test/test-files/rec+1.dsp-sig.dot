@@ -1,0 +1,20 @@
+strict digraph loopgraph {
+    rankdir=LR; node [fontsize=10];
+S0x7fdc78f0aa10[label="@" color="blue" shape="ellipse"];
+S0x7fdc78f0a3e0[label="Proj0" color="blue" shape="ellipse"];
+S0x7fdc78f0a210[label="REC W0" color="blue" shape="ellipse"];
+S0x7fdc78f0c8e0[label="+" color="blue" shape="ellipse"];
+S0x7fdc78f0c7d0[label="@" color="blue" shape="ellipse"];
+S0x7fdc78f0a3e0 -> S0x7fdc78f0c7d0[ color="blue" label ="[0.000000, inf], r(???)"];
+S0x7fdc78d09d60[label="1" color="blue" shape="box"];
+S0x7fdc78d09d60 -> S0x7fdc78f0c7d0[ color="blue" label ="[1.000000, 1.000000], r(???)"];
+S0x7fdc78f0c7d0 -> S0x7fdc78f0c8e0[ color="blue" label ="[0.000000, inf], r(???)"];
+S0x7fdc78d09d60 -> S0x7fdc78f0c8e0[ color="blue" label ="[1.000000, 1.000000], r(???)"];
+S0x7fdc78f0c8e0 -> S0x7fdc78f0a210[ color="blue" label ="[1.000000, inf], r(???)"];
+S0x7fdc78f0a210 -> S0x7fdc78f0a3e0[ color="blue" label ="[0.000000, inf], r(???)"];
+S0x7fdc78f0a3e0 -> S0x7fdc78f0aa10[ color="blue" label ="[0.000000, inf], r(???)"];
+S0x7fdc78d09810[label="0" color="blue" shape="box"];
+S0x7fdc78d09810 -> S0x7fdc78f0aa10[ color="blue" label ="[0.000000, 0.000000], r(???)"];
+OUTPUT_0[color="red2" style="filled" fillcolor="pink"];
+S0x7fdc78f0aa10 -> OUTPUT_0[ color="blue" label ="[0.000000, inf], r(???)"];
+}
