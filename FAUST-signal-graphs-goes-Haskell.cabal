@@ -25,8 +25,8 @@ source-repository head
 
 library
   exposed-modules:
+      GraphPrinter
       GraphState
-      Lib
       SigDot.Abs
       SigDot.ErrM
       SigDot.Lex
