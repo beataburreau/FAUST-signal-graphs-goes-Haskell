@@ -1,5 +1,4 @@
 -- .dot grammars: https://graphviz.org/doc/info/lang.html 
--- genererad .dot-fil saknar semikolon efter edge statements (?)
 
 GDef        . DotGraph ::= "strict" GKind ID "{" [Stmt] "}" ; 
 
