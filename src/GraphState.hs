@@ -52,7 +52,7 @@ data Edge ei = Edge {
     ei1 :: Int,     -- start node identifier 
     ei2 :: Int,     -- end node identifier
     etype :: Type,
-    einterval :: Interval Float
+    einterval :: Maybe (Interval Float)
 }
 
 data Type = Integer
@@ -144,25 +144,24 @@ toComputationRate str = case str of
 
 -- Parses a .dot graph edge label into a floating point interval using Parsec parsers
 -- EX/ 
--- "[4.000000, inf], r(???)" is successfully parsed as (Finite 4.00 <=..< PosInf)
-toInterval :: String -> Interval Float
-toInterval str = interval (extendedF lower) (extendedF upper)
+-- "[4.000000, inf], r(???)" is successfully parsed as a defined interval, giving Just (Finite 4.00 <=..< PosInf)
+-- "[???], r(???)" is successfully parsed as an undefined interval,        giving Nothing
+toInterval :: String -> Maybe (Interval Float)
+toInterval str = case parse undefIntervalP "" str of 
+                    Right _ -> Nothing
+                    Left _  -> case parse defIntervalP "" str of 
+                                Right (lower, upper) -> Just $ interval (bound lower) (bound upper)
+                                Left _               -> error $ str ++ " is not a valid interval"
                 where
-                    (lower, upper) = case parse intervalP "" str of
-                                    Left _ -> error $ str ++ " is not a valid interval"
-                                    Right (fst, snd) -> (fst, snd)
-                    extendedF :: String -> (Extended Float, Boundary)
-                    extendedF str = case str of
-                                        "inf"   -> (PosInf, Open)
-                                        "-inf"  -> (NegInf, Open)
-                                        _       -> (Finite $ toFloat str, Closed)
-                    toFloat :: String -> Float
-                    toFloat str = case readMaybe str :: Maybe Float of
-                                    Just d -> d
-                                    Nothing -> error $ "Failed to parse " ++ str ++ " as floating point number"
-                    -- Parsec parser for intervals
-                    intervalP :: Parsec String () (String, String)
-                    intervalP = do
+                    -- Parsec parser for undefined intervals (on the form [???])
+                    undefIntervalP :: Parsec String () String
+                    undefIntervalP = do 
+                                     string "[???]"
+                                     many (oneOf ", r(?")
+                                     return ""
+                    -- Parsec parser for defined intervals (on the form [ _, _ ])
+                    defIntervalP :: Parsec String () (String, String)
+                    defIntervalP = do
                                     char '['
                                     fst <- choice [floatP, infinityP]
                                     char ','
@@ -171,16 +170,25 @@ toInterval str = interval (extendedF lower) (extendedF upper)
                                     char ']'
                                     many (oneOf ", r(?")
                                     return (fst, snd)
-                    -- Parsec parser for floating point numbers
-                    floatP :: Parsec String () String
-                    floatP = do
-                                sign <- option "" (string "-")
-                                intPart <- manyTill digit (char '.')
-                                decPart <- many1 digit
-                                return $ sign ++ intPart ++ "." ++ decPart
-                    -- Parsec parser for (positive and negative) infinities
-                    infinityP :: Parsec String () String
-                    infinityP = do
-                                sign <- option "" (string "-")
-                                string "inf"
-                                return $ sign ++ "inf"
+                                    where 
+                                    -- Parsec parser for floating point numbers
+                                    floatP :: Parsec String () String
+                                    floatP = do
+                                                sign <- option "" (string "-")
+                                                intPart <- manyTill digit (char '.')
+                                                decPart <- many1 digit
+                                                return $ sign ++ intPart ++ "." ++ decPart
+                                    -- Parsec parser for (positive and negative) infinities
+                                    infinityP :: Parsec String () String
+                                    infinityP = do
+                                                sign <- option "" (string "-")
+                                                string "inf"
+                                                return $ sign ++ "inf"
+                    -- Converts given string to an interval bound; infinite and open or finite (floating point number) and closed
+                    bound :: String -> (Extended Float, Boundary)
+                    bound str = case str of
+                                    "inf"   -> (PosInf, Open)
+                                    "-inf"  -> (NegInf, Open)
+                                    _       -> case readMaybe str :: Maybe Float of
+                                                Just d  -> (Finite d, Closed)
+                                                Nothing -> error $ "Failed to parse " ++ str ++ " as floating point number" 

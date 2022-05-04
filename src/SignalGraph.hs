@@ -122,7 +122,9 @@ edges stmts = do
                                                                                       interval = case getAttribute attrs A.ALabel of
                                                                                             Just l -> toInterval l
                                                                                             Nothing -> error "Missing label attribute"
-                                                                                      l = "[" ++ showExtendedF (lowerBound interval) ++ ", " ++ showExtendedF (upperBound interval) ++ "]"
+                                                                                      l = case interval of 
+                                                                                            Just intrvl -> "[" ++ showExtendedF (lowerBound intrvl) ++ ", " ++ showExtendedF (upperBound intrvl) ++ "]"
+                                                                                            Nothing     -> "[???]"
                                                                                       t = case getAttribute attrs A.AColor of
                                                                                             Just c -> toType c
                                                                                             Nothing -> error "Missing color attribute"
