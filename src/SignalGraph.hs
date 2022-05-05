@@ -30,6 +30,7 @@ import Data.Interval (lowerBound, upperBound, Extended (..))
 type N = String   -- Node label
 type E = String   -- Edge label
 
+
 -- Parses the content of given file into an inductive dynamic graph (Gr N E)
 -- *  The nodes and edges in the graph are labelled with their primitives and intervals respectively
 -- *  Additional graph information - such as types and computation rates - is kept in the graph monad, GraphM
