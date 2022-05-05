@@ -25,8 +25,8 @@ source-repository head
 
 library
   exposed-modules:
+      GraphMonad
       GraphPrinter
-      GraphState
       SigDot.Abs
       SigDot.ErrM
       SigDot.Lex
@@ -97,6 +97,7 @@ test-suite FAUST-signal-graphs-goes-Haskell-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      ParserTests
       Paths_FAUST_signal_graphs_goes_Haskell
   hs-source-dirs:
       test

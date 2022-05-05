@@ -1,8 +1,11 @@
 {-# LANGUAGE RankNTypes #-}
 
-module GraphState
-    (GraphState,
-    Info,
+module GraphMonad
+    (GraphM,
+    runGraphM,
+    State,
+    initState,
+    Error(..),
     Edge(Edge),
     Node(Node, nid, ni),
     Primitive(..),
@@ -15,27 +18,45 @@ module GraphState
 where
 
 -- MONADS
-import Control.Monad.State (StateT)
-import Control.Monad.Except (ExceptT)
+import Control.Monad.State (StateT (runStateT))
+import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Exception (Exception)
 
 -- LIBRARIES
 import Data.Interval (Interval, Boundary (..), interval, Extended (NegInf, PosInf, Finite))
 import Data.Maybe (isJust, fromJust)
 import Text.Read (readMaybe)
-import Text.Parsec (Parsec, parse, oneOf, manyTill, string, digit, spaces, many1, many, option, choice, char)
+import Text.Parsec (Parsec, parse, oneOf, manyTill, string, digit, spaces, many1, many, option, choice, char, ParseError)
 import Numeric (readHex)
 import Data.Char (toLower)
 import Data.Either (fromLeft)
 
 
--- The graph state 
--- Keeps information about the graph's nodes and edges while allowing IO action
-type GraphState a = StateT Info IO a
+-- The graph monad
+-- Keeps node and edge information in the state while allowing IO action and exception handling
+type GraphM a = StateT State (ExceptT Error IO) a
 
--- The information tuple
--- Holds node information in the first tuple element and edge information in the second
-type Info = ([Node Int], [Edge Int])
+runGraphM :: State -> GraphM a -> IO (Either Error (a, State))
+runGraphM s = runExceptT . flip runStateT s
+
+data Error = ParseError String
+           | NoSuchFile FilePath
+instance Exception Error
+
+instance Show Error where
+  show (ParseError e) =
+    "syntax error:\n" ++ e
+  show (NoSuchFile f) =
+    "file not found: " ++ f
+
+-- The State
+-- Holds a tuple of additional graph information; 
+-- node information in the first tuple element and edge information in the second
+type State = ([Node Int], [Edge Int])
+
+-- Inital state: an empty state
+initState :: State 
+initState = ([],[])
 
 -- Node data type
 data Node ni = Node {
@@ -112,11 +133,11 @@ toPrimitive str | isJust number                           = Number $ fromJust nu
                                      "%"     -> Just Mod
                                      "+"     -> Just Add
                                      "-"     -> Just Sub
-                                     "<"     -> Just GraphState.LT
+                                     "<"     -> Just GraphMonad.LT
                                      "<="    -> Just LE
-                                     ">"     -> Just GraphState.GT
+                                     ">"     -> Just GraphMonad.GT
                                      ">="    -> Just GE
-                                     "=="    -> Just GraphState.EQ
+                                     "=="    -> Just GraphMonad.EQ
                                      "!="    -> Just NEQ
                                      "xor"   -> Just XOR
                                      "&"     -> Just AND
