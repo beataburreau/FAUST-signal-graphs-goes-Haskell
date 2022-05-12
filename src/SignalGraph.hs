@@ -9,10 +9,7 @@ import SigDot.Par (pDotGraph, myLexer)
 -- GRAPH STATE
 import GraphMonad (GraphM, runGraphM, State, initState, Error(..), Edge(Edge),
       Node(Node, nid, ni), Primitive(..), ComputationRate(..), Type(..),
-      toType, toPrimitive, toComputationRate, toInterval, Error (ParseError))
-
--- GRAPH PRINTER 
-import GraphPrinter (prettyPrint)
+      toType, toPrimitive, toComputationRate, Error (ParseError), parseLabel)
 
 -- MONADS
 import Control.Monad.State (get, put, MonadIO (liftIO))
@@ -24,6 +21,7 @@ import Data.Graph.Inductive (Gr, LNode, LEdge, Graph (mkGraph))
 import Data.Char (isDigit)
 import Data.List (stripPrefix)
 import Data.Interval (lowerBound, upperBound, Extended (..))
+
 
 -- Type synonyms for node and edge labels
 -- (as used in the inductive dynamic graph type, Gr N E)
@@ -76,7 +74,7 @@ nodes stmts = do
                     node s i = case s of
                                 (A.SNode (A.ID id) attrs) -> if id /= "OUTPUT_0"
                                                              then Just (Node i id t p r, (i, l))
-                                                             else Just (Node 0 id t p r, (0, id))
+                                                             else Just (Node 0 id t Output Sample, (0, id))
                                                                 where l = case getAttribute attrs A.ALabel of
                                                                             Just l -> l
                                                                             Nothing -> throw $ ParseError "Missing label attribute"
@@ -104,13 +102,13 @@ edges stmts = do
                 where
                     edge :: [Node Int] -> A.Stmt -> Maybe (Edge Int, LEdge N)
                     edge ns s = case s of
-                                    (A.SEdge (A.ID id1) (A.ID id2) attrs) -> Just (Edge i i1 i2 t interval, (i1, i2, l))
+                                    (A.SEdge (A.ID id1) (A.ID id2) attrs) -> Just (Edge i i1 i2 t a interval, (i1, i2, l))
                                                                                 where i = i1 - i2
                                                                                       (i1, i2) = case lookupNodes (id1, id2) ns of
                                                                                                     Just is -> is
                                                                                                     _       -> throw $ ParseError "Couldn't find current nodes in the graph state's node list"
-                                                                                      interval = case getAttribute attrs A.ALabel of
-                                                                                            Just l -> toInterval l
+                                                                                      (a, interval) = case getAttribute attrs A.ALabel of
+                                                                                            Just l -> parseLabel l
                                                                                             Nothing -> throw $ ParseError "Missing label attribute"
                                                                                       l = case interval of
                                                                                             Just intrvl -> "[" ++ showExtendedF (lowerBound intrvl) ++ ", " ++ showExtendedF (upperBound intrvl) ++ "]"
