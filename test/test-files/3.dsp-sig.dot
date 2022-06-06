@@ -1,6 +1,0 @@
-strict digraph loopgraph {
-    rankdir=LR; node [fontsize=10];
-S0x7f854cc0d3b0[label="3" color="blue" shape="box"];
-OUTPUT_0[color="red2" style="filled" fillcolor="pink"];
-S0x7f854cc0d3b0 -> OUTPUT_0[ color="blue" label ="[3.000000, 3.000000], r(???)"];
-}
