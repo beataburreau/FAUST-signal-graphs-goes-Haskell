@@ -1,13 +1,9 @@
 module ParserTests (runTests) where
 import Control.Monad.State (evalStateT)
 import SignalGraph (haskelliseFile)
+import GraphLabels (N, E)
 import Data.Graph.Inductive (Gr, Graph (empty))
 import GraphMonad (GraphM, runGraphM, initState)
-
--- Type synonyms for node and edge labels
--- (as used in the inductive dynamic graph type, Gr N E)
-type N = String   -- Node label
-type E = String   -- Edge label
 
 runTests :: IO Bool 
 runTests = do 
