@@ -1,20 +1,23 @@
-{-# LANGUAGE RankNTypes #-}
-
 module GraphMonad
     (GraphM,
     runGraphM,
     State,
     initState,
     Error(..),
-    Edge(Edge),
-    Node(Node, nid, ni),
+    Edge(..),
+    Node(..),
     Primitive(..),
+    Operator(..), 
+    UI(..),
     ComputationRate(..),
     Type(..),
+    SFix(..),
     toPrimitive,
     toComputationRate,
     toType,
-    parseLabel)
+    parseLabel, 
+    lookupNode,
+    lookupEdge)
 where
 
 -- MONADS
@@ -41,13 +44,19 @@ runGraphM s = runExceptT . flip runStateT s
 
 data Error = ParseError String
            | NoSuchFile FilePath
+           | GraphError String
+           | InferenceError String
 instance Exception Error
 
 instance Show Error where
-  show (ParseError e) =
-    "syntax error:\n" ++ e
-  show (NoSuchFile f) =
-    "file not found: " ++ f
+    show (ParseError e) =
+        "syntax error:\n" ++ e
+    show (NoSuchFile f) =
+        "file not found: " ++ f
+    show (GraphError e) = 
+        "graph error:\n" ++ e
+    show (InferenceError e) = 
+        "inference error:\n" ++ e
 
 -- The State
 -- Holds a tuple of additional graph information; 
@@ -60,28 +69,52 @@ initState = ([],[])
 
 -- Node data type
 data Node ni = Node {
-    ni :: Int,      -- unique integer indentifier
-    nid :: String,  -- identifier in .dot graph, e.g. S0x7fb9cfd0abe0
-    ntype :: Type,
-    nprimitive :: Primitive,
-    nrate :: ComputationRate
+    ni          :: Int,         -- unique integer indentifier
+    nid         :: String,      -- identifier in .dot graph, e.g. S0x7fb9cfd0abe0
+    ntype       :: Type,
+    nprimitive  :: Primitive,
+    nrate       :: ComputationRate
 }
 
+instance Eq (Node ni) where 
+    n1 == n2 = 
+        ni n1  == ni n2  &&
+        nid n1 == nid n2
+
 instance Show (Node ni) where
-    show (Node i id t p r) = show i ++ ": \"" ++ show id ++ "\", " ++ show t ++ ", " ++ show p ++ ", " ++ show r
+    show (Node i id t p r) = show i ++ ": \"" ++ id ++ "\", " ++ show t ++ ", " ++ show p ++ ", " ++ show r
 
 -- Edge data type
 data Edge ei = Edge {
-    ei :: Int,      -- unique integer indentifier 
-    ei1 :: Int,     -- start node identifier 
-    ei2 :: Int,     -- end node identifier
-    etype :: Type,
-    earg :: Int,
-    einterval :: Maybe (Interval Float)
+    ei          :: Int,         -- unique integer indentifier 
+    ei1         :: Int,         -- start node identifier 
+    ei2         :: Int,         -- end node identifier
+    etype       :: Type,
+    earg        :: Int,
+    einterval   :: Maybe (Interval Float),
+    esfix       :: SFix
 }
 
+instance Eq (Edge ei) where 
+    e1 == e2 = 
+        ei e1  == ei e2  && 
+        ei1 e1 == ei1 e2 &&
+        ei2 e1 == ei2 e2
+
 instance Show (Edge ei) where
-    show (Edge i i1 i2 t a interval) = show i1 ++ "->" ++ show i2 ++ ":" ++ ", " ++ show t ++ ", " ++ show a ++ ", " ++ show interval
+    show (Edge i i1 i2 t a interval sfix) = show i1 ++ "->" ++ show i2 ++ ":" ++ ", " ++ show t ++ ", " ++ show a ++ ", " ++ show interval ++ show sfix
+
+-- Signed fixpoint format: sfix(msb, lsb)
+data SFix = SFix {
+    msb :: Maybe Int, 
+    lsb :: Maybe Int
+}
+
+instance Show SFix where 
+    show (SFix (Just msb) (Just lsb)) = "sfix(" ++ show msb ++ ", " ++ show lsb ++ ")" 
+    show (SFix  Nothing   (Just lsb)) = "sfix(?, " ++ show lsb ++ ")" 
+    show (SFix (Just msb)  Nothing  ) = "sfix(" ++ show msb ++ ", ?)" 
+    show _                            = "sfix(?, ?)"
 
 data Type = Integer
           | Float
@@ -132,13 +165,14 @@ instance Show Operator where
     show RShift         = ">>"
 
 
-data UI = Button | Checkbox | HSlider | VSlider | Nentry
+data UI = Button | Checkbox | HSlider Float | VSlider Float | Nentry Float
     deriving Show
 
 data ComputationRate = Constant
                      | Sample
                      | Block
     deriving Show
+
 
 -- Converts a .dot graph color into the corresponding type
 toType :: String -> Type
@@ -183,6 +217,7 @@ toPrimitive str | isJust number                             = Number $ fromJust 
                                      "*"     -> Just Mul
                                      "/"     -> Just Div
                                      "%"     -> Just Mod
+                                     "fmod"  -> Just Mod
                                      "+"     -> Just Add
                                      "-"     -> Just Sub
                                      "<"     -> Just GraphMonad.LT
@@ -201,10 +236,23 @@ toPrimitive str | isJust number                             = Number $ fromJust 
                     toUI str = case str of
                                 "button"   -> Just Button
                                 "checkbox" -> Just Checkbox
-                                "hslider"  -> Just HSlider
-                                "vslider"  -> Just VSlider
-                                "nentry"   -> Just Nentry
-                                _          -> Nothing
+                                _          -> case parse uiP "" str of 
+                                                    Left _           -> Nothing
+                                                    Right (ui, step) -> case readMaybe step :: Maybe Float of
+                                                                            Just d  -> case ui of 
+                                                                                        "hslider" -> Just $ HSlider d
+                                                                                        "vslider" -> Just $ VSlider d
+                                                                                        "nentry"  -> Just $ Nentry d
+                                                                                        _         -> throw $ ParseError $ ui ++ " is not a valid UI primitive"
+                                                                            Nothing -> throw $ ParseError $ "Failed to parse " ++ step ++ " as floating point number"
+                                where 
+                                    uiP :: Parsec String () (String, String)
+                                    uiP = do 
+                                          ui <- choice [string "hslider", string "vslider", string "nentry"]
+                                          string ", step("
+                                          step <- floatP
+                                          return (ui, step)
+
 
 
 -- Converts a .dot graph node shape into the corresponding computation rate
@@ -252,27 +300,21 @@ parseInterval str = case parse undefIntervalP "" str of
                     defIntervalP :: Parsec String () (String, String)
                     defIntervalP = do
                                     char '['
+                                    fstsign <- option "" (string "-")
                                     fst <- choice [floatP, infinityP]
                                     char ','
                                     spaces
+                                    sndsign <- option "" (string "-")
                                     snd <- choice [floatP, infinityP]
                                     char ']'
                                     many (oneOf ", r(?")
-                                    return (fst, snd)
+                                    return (fstsign ++ fst, sndsign ++ snd)
                                     where
-                                    -- Parsec parser for floating point numbers
-                                    floatP :: Parsec String () String
-                                    floatP = do
-                                                sign <- option "" (string "-")
-                                                intPart <- manyTill digit (char '.')
-                                                decPart <- many1 digit
-                                                return $ sign ++ intPart ++ "." ++ decPart
-                                    -- Parsec parser for (positive and negative) infinities
+                                    -- Parsec parser for infinities
                                     infinityP :: Parsec String () String
                                     infinityP = do
-                                                sign <- option "" (string "-")
                                                 string "inf"
-                                                return $ sign ++ "inf"
+                                                return "inf"
                     -- Converts given string to an interval bound; infinite and open or finite (floating point number) and closed
                     bound :: String -> (Extended Float, Boundary)
                     bound str = case str of
@@ -281,3 +323,27 @@ parseInterval str = case parse undefIntervalP "" str of
                                     _       -> case readMaybe str :: Maybe Float of
                                                 Just d  -> (Finite d, Closed)
                                                 Nothing -> throw $ ParseError $ "Failed to parse " ++ str ++ " as floating point number"
+
+-- Parsec parser for floating point numbers
+floatP :: Parsec String () String
+floatP = do
+            intPart <- manyTill digit (char '.')
+            decPart <- many1 digit
+            return $ intPart ++ "." ++ decPart
+
+
+-- Finds the node with given integer identifier, 
+-- if the node is present in the node list
+lookupNode :: Int -> [Node Int] -> Maybe (Node Int)
+lookupNode _ []     = Nothing
+lookupNode i (n:ns) = if i == ni n
+                          then Just n
+                          else lookupNode i ns
+
+-- Finds the edge spanning between the two nodes with given integer identifiers, 
+-- if the edge is present in the edge list
+lookupEdge :: Int -> Int -> [Edge Int] -> Maybe (Edge Int)
+lookupEdge _  _  []     = Nothing
+lookupEdge i1 i2 (e:es) = if i1 == ei1 e && i2 == ei2 e
+                          then Just e
+                          else lookupEdge i1 i2 es
