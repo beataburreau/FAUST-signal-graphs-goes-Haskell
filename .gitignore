@@ -17,9 +17,12 @@ cabal.sandbox.config
 *.hp
 *.eventlog
 .stack-work/
+.vscode/
 cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
 **/.DS_Store
 *.bak
+*.dsp-sig.dot
+*.svg
