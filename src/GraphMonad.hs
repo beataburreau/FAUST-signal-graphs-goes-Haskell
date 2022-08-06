@@ -1,24 +1,6 @@
-module GraphMonad
-    (GraphM,
-    runGraphM,
-    State,
-    initState,
-    Error(..),
-    Edge(..),
-    Node(..),
-    Primitive(..),
-    Operator(..), 
-    UI(..),
-    ComputationRate(..),
-    Type(..),
-    SFix(..),
-    toPrimitive,
-    toComputationRate,
-    toType,
-    parseLabel, 
-    lookupNode,
-    lookupEdge)
-where
+module GraphMonad (GraphM, runGraphM, State, initState, Error(..), Edge(..), Node(..), Primitive(..), Operator(..), Math(..), UI(..),
+    ComputationRate(..), Type(..), SFix(..), toPrimitive, toComputationRate, toType, parseLabel, lookupNode, lookupEdge, setLSB, 
+    setPathSuccs, addPathSucc, removePathSucc, getLastPathSucc, cleanShow) where
 
 -- MONADS
 import Control.Monad.State (StateT (runStateT))
@@ -33,6 +15,7 @@ import Text.Parsec (Parsec, parse, oneOf, manyTill, string, digit, spaces, many1
 import Numeric (readHex)
 import Data.Char (toLower)
 import Data.Either (fromLeft, fromRight)
+import Sfix (maxLSB)
 
 
 -- The graph monad
@@ -69,11 +52,13 @@ initState = ([],[])
 
 -- Node data type
 data Node ni = Node {
-    ni          :: Int,         -- unique integer indentifier
-    nid         :: String,      -- identifier in .dot graph, e.g. S0x7fb9cfd0abe0
-    ntype       :: Type,
-    nprimitive  :: Primitive,
-    nrate       :: ComputationRate
+    ni         :: Int,         -- unique integer indentifier
+    nid        :: String,      -- identifier in .dot graph, e.g. S0x7fb9cfd0abe0
+    ntype      :: Type,
+    nprimitive :: Primitive,
+    nrate      :: ComputationRate,
+    npathsuccs :: [Int]        -- successors on LSB inference path, 
+                               -- the head of the list is the nid of the most recent successor 
 }
 
 instance Eq (Node ni) where 
@@ -82,7 +67,7 @@ instance Eq (Node ni) where
         nid n1 == nid n2
 
 instance Show (Node ni) where
-    show (Node i id t p r) = show i ++ ": \"" ++ id ++ "\", " ++ show t ++ ", " ++ show p ++ ", " ++ show r
+    show (Node i id t p r succs) = show i ++ ": \"" ++ id ++ "\", " ++ show t ++ ", " ++ show p ++ ", " ++ show r ++ ", " ++ show succs
 
 -- Edge data type
 data Edge ei = Edge {
@@ -102,19 +87,20 @@ instance Eq (Edge ei) where
         ei2 e1 == ei2 e2
 
 instance Show (Edge ei) where
-    show (Edge i i1 i2 t a interval sfix) = show i1 ++ "->" ++ show i2 ++ ":" ++ ", " ++ show t ++ ", " ++ show a ++ ", " ++ show interval ++ show sfix
+    show (Edge i i1 i2 t a interval sfix) = show i1 ++ "->" ++ show i2 ++ ":" ++ ", " ++ show t ++ ", " ++ show a ++ ", " ++ show interval ++ "," ++ show sfix
 
 -- Signed fixpoint format: sfix(msb, lsb)
 data SFix = SFix {
     msb :: Maybe Int, 
-    lsb :: Maybe Int
+    lsb :: Maybe Int, 
+    trimmed :: Bool
 }
 
 instance Show SFix where 
-    show (SFix (Just msb) (Just lsb)) = "sfix(" ++ show msb ++ ", " ++ show lsb ++ ")" 
-    show (SFix  Nothing   (Just lsb)) = "sfix(?, " ++ show lsb ++ ")" 
-    show (SFix (Just msb)  Nothing  ) = "sfix(" ++ show msb ++ ", ?)" 
-    show _                            = "sfix(?, ?)"
+    show (SFix (Just msb) (Just lsb) _) = "sfix(" ++ show msb ++ ", " ++ show lsb ++ ")" 
+    show (SFix  Nothing   (Just lsb) _) = "sfix(?, " ++ show lsb ++ ")" 
+    show (SFix (Just msb)  Nothing   _) = "sfix(" ++ show msb ++ ", ?)" 
+    show _                              = "sfix(?, ?)"
 
 data Type = Integer
           | Float
@@ -122,9 +108,11 @@ data Type = Integer
 
 data Primitive = Number (Either Int Float) -- a number is _either_ an integer or a floating point number
                | Operator Operator
+               | Math Math
                | UI UI
                | Proj Int
                | Rec Int
+               | FSamplingFreq 
                | Input Int
                | Output
 
@@ -132,9 +120,11 @@ instance Show Primitive where
     show (Number (Left i))  = show i
     show (Number (Right f)) = show f
     show (Operator op)      = show op
+    show (Math m)           = show m
     show (UI ui)            = show ui
     show (Proj i)           = "Proj" ++ show i
     show (Rec i)            = "REC W" ++ show i
+    show FSamplingFreq      = "fSamplingFreq"
     show (Input i)          = "INPUT " ++ show i
     show Output             = "OUTPUT"
 
@@ -164,6 +154,29 @@ instance Show Operator where
     show LShift         = "<<"
     show RShift         = ">>"
 
+data Math = ACos | ASin | ATan | ATan2 | Cos | Sin | Tan | Exp | Log | Log10 | MPow | Sqrt | Abs | Min | Max | FMod | Remainder | Floor | Ceil | Rint
+
+instance Show Math where 
+    show ACos       = "acos"
+    show ASin       = "asin"
+    show ATan       = "atan"
+    show ATan2      = "atan2"
+    show Cos        = "cos"
+    show Sin        = "sin"
+    show Tan        = "tan"
+    show Exp        = "exp"
+    show Log        = "log"
+    show Log10      = "log10"
+    show MPow       = "pow"
+    show Sqrt       = "sqrt"
+    show Abs        = "abs"
+    show Min        = "min"
+    show Max        = "max"
+    show FMod       = "fmod"
+    show Remainder  = "remainder"
+    show Floor      = "floor"
+    show Ceil       = "ceil"
+    show Rint       = "rint"
 
 data UI = Button | Checkbox | HSlider Float | VSlider Float | Nentry Float
     deriving Show
@@ -187,15 +200,18 @@ toType str = case str of
 toPrimitive :: String -> Primitive
 toPrimitive str | isJust number                             = Number $ fromJust number
                 | isJust operator                           = Operator $ fromJust operator
+                | isJust math                               = Math $ fromJust math
                 | isJust ui                                 = UI $ fromJust ui
                 | enumeratedStr 4 "Proj" 4                  = Proj $ fromLeft (throw $ ParseError "Invalid projection number, it must be an integer value") (fromJust $ enumeration 4)
                 | enumeratedStr 5 "REC W" 5                 = Rec $ fromLeft (throw $ ParseError "Invalid projection number, it must be an integer value") (fromJust $ enumeration 5)
+                | str == "fSamplingFreq"                    = FSamplingFreq    
                 | enumeratedStr 5 "INPUT" 6                 = Input $ fromLeft (throw $ ParseError "Invalid input number, it must be an integer value") (fromJust $ enumeration 6)
                 | str == "OUTPUT_0"                         = Output
                 | otherwise                                 = throw $ ParseError $ str ++ " is not a valid primitive value; it must be an integer, float, operator, UI element, projection, input or output signal"
                 where
                     number = toNumber str
                     operator = toOperator str
+                    math = toMath str
                     ui = toUI str
                     enumeratedStr :: Int -> String -> Int -> Bool
                     enumeratedStr t substr d = take t str == substr && isJust (enumeration d)
@@ -232,6 +248,29 @@ toPrimitive str | isJust number                             = Number $ fromJust 
                                      "<<"    -> Just LShift
                                      ">>"    -> Just RShift
                                      _       -> Nothing
+                    toMath :: String -> Maybe Math
+                    toMath str = case str of 
+                                "acos"      -> Just ACos
+                                "asin"      -> Just ASin
+                                "atan"      -> Just ATan
+                                "atan2"     -> Just ATan2
+                                "cos"       -> Just Cos
+                                "sin"       -> Just Sin
+                                "tan"       -> Just Tan
+                                "exp"       -> Just Exp
+                                "log"       -> Just Log
+                                "log10"     -> Just Log10
+                                "pow"       -> Just MPow
+                                "sqrt"      -> Just Sqrt
+                                "abs"       -> Just Abs
+                                "min"       -> Just Min
+                                "max"       -> Just Max
+                                "fmod"      -> Just FMod
+                                "remainder" -> Just Remainder
+                                "floor"     -> Just Floor
+                                "ceil"      -> Just Ceil
+                                "rint"      -> Just Rint
+                                _           -> Nothing
                     toUI :: String -> Maybe UI
                     toUI str = case str of
                                 "button"   -> Just Button
@@ -347,3 +386,30 @@ lookupEdge _  _  []     = Nothing
 lookupEdge i1 i2 (e:es) = if i1 == ei1 e && i2 == ei2 e
                           then Just e
                           else lookupEdge i1 i2 es
+
+setLSB :: Int -> Edge Int -> Edge Int
+setLSB newlsb e@(Edge _ _ _ _ _ _ (SFix msb lsb _)) = let newlsb' = if newlsb >= maxLSB then newlsb else maxLSB
+                                                      in case lsb of
+                                                              Nothing -> e {esfix = SFix msb (Just newlsb') False}
+                                                              Just _  -> e {esfix = SFix msb (Just newlsb') True}
+
+setPathSuccs :: [Int] -> Node Int -> Node Int
+setPathSuccs succs n = n {npathsuccs = succs}
+
+-- Adds given node to list of path successors
+addPathSucc :: Int -> Node Int -> Node Int
+addPathSucc succ n = n {npathsuccs = succ : npathsuccs n}
+
+-- Gives the last path successor
+getLastPathSucc :: Node Int -> Maybe Int
+getLastPathSucc n = case npathsuccs n of 
+                        []    -> Nothing
+                        succs -> Just $ last succs
+
+-- Removes the last path successor from the nodes successor list
+removePathSucc :: Node Int -> Node Int
+removePathSucc n = n {npathsuccs = tail $ npathsuccs n}
+
+-- For debugging purposes
+cleanShow :: Edge Int -> String
+cleanShow e = show (ei1 e) ++ " -> " ++ show (ei2 e)

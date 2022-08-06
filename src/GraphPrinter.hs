@@ -26,7 +26,7 @@ prettifyDetailed showNs showEs (ns, es) = (if showNs then foldr showsNode id ns 
                                           (if showEs then foldr showsEdge id es "" else "")
         where
                 showsNode :: GM.Node a -> (a2 -> String) -> a2 -> String
-                showsNode (GM.Node i id t p r) sg = shows i 
+                showsNode (GM.Node i id t p r _) sg = shows i 
                                         . showString ": " . shows p
                                         . showString ", " . shows r
                                         . showString ", " . shows t
@@ -39,7 +39,7 @@ prettifyDetailed showNs showEs (ns, es) = (if showNs then foldr showsNode id ns 
                                                 . showString ", " . shows sfix
                                                 . showString "\n\n" . sg        
 
--- Pretty-print the graph to stdout.
+-- Pretty-print the graph to stdout
 prettyPrint :: (G.DynGraph gr, Show a, Show b) => gr a b -> IO ()
 prettyPrint = putStr . prettify
 
@@ -53,6 +53,7 @@ prettify g = foldr (showsContext . G.context g) id (G.nodes g) ""
                                 . showString " -> " . shows s
                                 . showString "\n\n" . sg
 
+-- Pretty-print the interval
 prettifyInterval :: Maybe (Interval Float) -> String
 prettifyInterval Nothing   = "[?, ?]"
 prettifyInterval (Just i)  = lower ++ ", " ++ upper

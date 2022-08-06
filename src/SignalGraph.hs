@@ -20,17 +20,18 @@ import Control.Exception (throw)
 import Data.Maybe (mapMaybe, fromMaybe, catMaybes)
 
 -- LIBRARIES
-import qualified Data.Graph.Inductive as G (Gr, LNode, LEdge, Graph (mkGraph))
+import qualified Data.Graph.Inductive as G (Gr, LNode, LEdge, Graph (mkGraph), Node, Path, pre)
 import Data.Char (isDigit)
-import Data.List (stripPrefix)
+import Data.List (stripPrefix, elemIndices, (\\))
 import Data.Interval (lowerBound, upperBound, Extended (..))
 import MSBs (getMSB)
 
--- Parses the content of given file into an inductive dynamic graph (Gr N E)
+-- Parses the content of given file into an inductive dynamic graph (Gr N E) and constructs a path 
+-- from the output node that covers all edges in graph
 -- *  The nodes and edges in the graph are labelled with their primitives and intervals respectively
 -- *  Additional graph information - such as types and computation rates - is kept in the graph monad, GraphM
-haskelliseFile :: FilePath -> GM.GraphM (G.Gr N E)
-haskelliseFile path = liftIO (parseFile path) >>= makeGraph
+haskelliseFile :: FilePath -> GM.GraphM (G.Gr N E) -- (G.Gr N E, G.Path)
+haskelliseFile path = liftIO (parseFile path) >>= buildGraph
 
 
 -- Parses the content of given file into the abstract syntax tree structure, DotGraph 
@@ -45,12 +46,11 @@ parse s = case pDotGraph (myLexer s) of
 
 -- Creates an inductive dynamic graph (Gr N E) with labelled nodes and edges from the given AST structure (DotGraph)
 -- *  Additional graph information is stored in the graph monad, GraphM
-makeGraph :: DotGraph -> GM.GraphM (G.Gr N E)
-makeGraph (A.GDef _ _ stmts) = do
+buildGraph :: DotGraph -> GM.GraphM (G.Gr N E)
+buildGraph (A.GDef _ _ stmts) = do
                                 lnodes <- nodes stmts
                                 ledges <- edges stmts
                                 return $ G.mkGraph lnodes ledges
-
 
 -- Constructs a list of labelled nodes from the given statement list
 -- *  Additional node information is stored in the graph monad, GraphM; the information - id, type, primitive and computation rate - 
@@ -70,8 +70,8 @@ nodes stmts = do
                     node :: A.Stmt -> Int -> Maybe (GM.Node Int, G.LNode N)
                     node s i = case s of
                                 (A.SNode (A.ID id) attrs) -> if id /= "OUTPUT_0"
-                                                             then Just (GM.Node i id t p r, (i, l))
-                                                             else Just (GM.Node 0 id t GM.Output GM.Sample, (0, id))
+                                                             then Just (GM.Node i id t p r [], (i, l))
+                                                             else Just (GM.Node 0 id t GM.Output GM.Sample [], (0, id))
                                                                 where l = case getAttribute attrs A.ALabel of
                                                                             Just l  -> l
                                                                             Nothing -> throw $ GM.ParseError "Missing label attribute"
@@ -107,7 +107,7 @@ edges stmts = do
                                                                                       (a, interval) = case getAttribute attrs A.ALabel of
                                                                                             Just l -> GM.parseLabel l
                                                                                             Nothing -> throw $ GM.ParseError "Missing label attribute"
-                                                                                      sfix = GM.SFix (Just $ getMSB interval) Nothing
+                                                                                      sfix = GM.SFix (Just $ getMSB interval) Nothing False
                                                                                       l = case interval of
                                                                                             Just intrvl -> "[" ++ showExtendedF (lowerBound intrvl) ++ ", " ++ showExtendedF (upperBound intrvl) ++ "]"
                                                                                             Nothing     -> "[???]"
