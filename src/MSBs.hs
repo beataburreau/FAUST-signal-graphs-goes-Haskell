@@ -1,11 +1,9 @@
 module MSBs (getMSB) where
 
--- PRECISIONS
-import Precisions (defaultMSB)
-
 -- LIBRARIES
 import Data.Interval (Interval, upperBound, lowerBound, Extended (NegInf, PosInf, Finite))
 import qualified Data.ExtendedReal as ER(isInfinite)
+import Sfix (defaultMSB)
 
 
 getMSB :: Maybe (Interval Float) -> Int

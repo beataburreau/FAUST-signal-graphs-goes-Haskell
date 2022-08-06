@@ -28,9 +28,11 @@ library
       GraphLabels
       GraphMonad
       GraphPrinter
+      LSBCalc
       LSBInference
+      LSBTrimming
       MSBs
-      Precisions
+      Sfix
       SigDot.Abs
       SigDot.ErrM
       SigDot.Lex
