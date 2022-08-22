@@ -1,10 +1,10 @@
-# FAUST-signal-graphs-goes-Haskell
-A Haskell representation of FAUST signal graphs
+# LSB inference using a Haskell representation of FAUST signal graphs
+
 
 This project is built and run using [Stack](https://docs.haskellstack.org/en/stable/README/#how-to-install-stack). 
 
-With stack installed, run `stack install`to install dependencies and build the project, then `stack ghci`to launch the GHC interactive shell. 
-From the shell, the LSBs can be inferred for any dot file (describing a FASUT signal graph) by running `Main.main`and supplying the relative path to the dot file. 
+With stack installed, run `stack install` to install dependencies and build the project, then `stack ghci` to launch the GHC interactive shell. 
+From the shell, the LSBs can be inferred for any dot file (describing a FASUT signal graph) by running `Main.main` and supplying the relative path to the dot file. 
 
 ```bash
 ghci> Main.main
@@ -30,4 +30,6 @@ LSB trimming successful!
 3 -> 1: Argument 1, [-1.0, 1.0], Float, sfix(2, -2)
 
 ```
+
+NOTE: The input and output precisions are specified, and can be altered, in Sfix.hs.
 
